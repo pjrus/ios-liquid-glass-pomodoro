@@ -1,35 +1,40 @@
-import { Tabs } from 'expo-router';
+import { Icon, Label, NativeTabs } from 'expo-router/unstable-native-tabs';
 import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { DynamicColorIOS, useColorScheme } from 'react-native';
+import { useThemeStore } from '../../store/themeStore';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { theme } = useThemeStore();
+  const systemColorScheme = useColorScheme();
+  const currentTheme = theme === 'system' ? systemColorScheme : theme;
+  const isDark = currentTheme === 'dark';
+
+  const tintColor = theme === 'system'
+    ? DynamicColorIOS({ dark: 'white', light: 'black' })
+    : (isDark ? 'white' : 'black');
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-    </Tabs>
+    <NativeTabs
+      labelStyle={{
+        color: tintColor,
+      }}
+      tintColor={tintColor}
+      minimizeBehavior="onScrollDown"
+    >
+      <NativeTabs.Trigger name="index">
+        <Label>Timer</Label>
+        <Icon sf={{ default: 'timer', selected: 'timer' }} />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="analytics" role="search">
+        <Label>Analytics</Label>
+        <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
+      </NativeTabs.Trigger>
+      
+      <NativeTabs.Trigger name="settings">
+        <Label>Settings</Label>
+        <Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

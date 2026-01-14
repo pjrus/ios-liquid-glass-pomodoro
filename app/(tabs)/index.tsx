@@ -1,98 +1,123 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import React, { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { GlassEffectContainer, GlassView } from '../../components/GlassView';
+import { TimerRing } from '../../components/TimerRing';
+import { SessionRepository } from '../../repositories/SessionRepository';
+import { useThemeStore } from '../../store/themeStore';
+import { useTimerStore } from '../../store/timerStore';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function TimerScreen() {
+  const { isRunning, startTime, duration, startTimer, stopTimer } = useTimerStore();
+  const [timeLeft, setTimeLeft] = useState(duration);
+  const { theme } = useThemeStore();
+  const systemColorScheme = useColorScheme();
+  
+  const currentTheme = theme === 'system' ? systemColorScheme : theme;
+  const isDark = currentTheme === 'dark';
 
-export default function HomeScreen() {
+  useEffect(() => {
+    let interval: any;
+    if (isRunning && startTime) {
+      interval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const remaining = Math.max(0, duration - elapsed);
+        setTimeLeft(remaining);
+
+        if (remaining <= 0) {
+          stopTimer();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          
+          if (startTime) {
+              SessionRepository.saveSession({
+                id: Math.random().toString(36).substr(2, 9),
+                startTime: startTime,
+                duration: duration,
+                completedAt: Date.now(),
+                type: 'focus',
+              });
+          }
+        }
+      }, 100);
+    } else {
+      setTimeLeft(duration);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning, startTime, duration, stopTimer]);
+
+  const toggleTimer = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (isRunning) {
+      stopTimer();
+    } else {
+      startTimer();
+    }
+  };
+
+  const progress = 1 - (timeLeft / duration);
+  const formattedTime = `${Math.floor(timeLeft / 60).toString().padStart(2, '0')}:${Math.floor(timeLeft % 60).toString().padStart(2, '0')}`;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
+      <GlassEffectContainer style={StyleSheet.absoluteFill}>
+        <View style={[
+          styles.gradientPlaceholder, 
+          { backgroundColor: isDark ? '#3b82f6' : '#60a5fa', opacity: isDark ? 0.3 : 0.15 }
+        ]} />
+      </GlassEffectContainer>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <GlassView style={styles.card} intensity={isDark ? 40 : 60} glassEffectStyle="regular">
+        <View style={styles.timerContainer}>
+          <TimerRing progress={progress} />
+          <Text style={[styles.timeText, { color: isDark ? '#fff' : '#000' }]}>{formattedTime}</Text>
+        </View>
+      </GlassView>
+
+      <Pressable onPress={toggleTimer} style={styles.buttonContainer}>
+        <GlassView style={styles.button} intensity={isDark ? 60 : 80} isInteractive>
+          <Text style={[styles.buttonText, { color: isDark ? '#fff' : '#000' }]}>{isRunning ? "Pause" : "Start Focus"}</Text>
+        </GlassView>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  gradientPlaceholder: {
+    flex: 1,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  card: {
+    padding: 20,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeText: {
     position: 'absolute',
+    fontSize: 64,
+    fontWeight: '200',
+    fontVariant: ['tabular-nums'],
+  },
+  buttonContainer: {
+    marginTop: 50,
+  },
+  button: {
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    borderRadius: 100,
+  },
+  buttonText: {
+    fontSize: 20,
+    fontWeight: '600',
   },
 });
