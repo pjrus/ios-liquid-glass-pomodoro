@@ -58,7 +58,11 @@ export function GlassView({
     return (
       <View style={[
         styles.fallback, 
-        { backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7' },
+        { 
+          backgroundColor: isDark ? '#1C1C1E' : '#F2F2F7',
+          borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+          borderWidth: StyleSheet.hairlineWidth,
+        },
         style
       ]}>
         {children}
@@ -72,7 +76,16 @@ export function GlassView({
     <AnimatedBlurView
       style={[
         styles.container, 
-        { backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)' },
+        { 
+          backgroundColor: isDark ? 'rgba(25, 25, 25, 0.4)' : 'rgba(255, 255, 255, 0.3)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.5)',
+          borderWidth: 0.5,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: isDark ? 0.3 : 0.1,
+          shadowRadius: 12,
+          elevation: 5,
+        },
         style, 
         animatedStyle
       ]}

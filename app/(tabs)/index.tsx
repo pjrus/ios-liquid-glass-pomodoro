@@ -1,20 +1,24 @@
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { GlassEffectContainer, GlassView } from '../../components/GlassView';
+import { Platform, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GlassView } from '../../components/GlassView';
 import { TimerRing } from '../../components/TimerRing';
 import { SessionRepository } from '../../repositories/SessionRepository';
 import { useThemeStore } from '../../store/themeStore';
 import { useTimerStore } from '../../store/timerStore';
 
 export default function TimerScreen() {
+  const insets = useSafeAreaInsets();
   const { isRunning, startTime, duration, startTimer, stopTimer } = useTimerStore();
   const [timeLeft, setTimeLeft] = useState(duration);
   const { theme } = useThemeStore();
   const systemColorScheme = useColorScheme();
   
-  const currentTheme = theme === 'system' ? systemColorScheme : theme;
-  const isDark = currentTheme === 'dark';
+  const isDark = theme === 'system' ? systemColorScheme === 'dark' : theme === 'dark';
+
+  const textColor = isDark ? '#FFFFFF' : '#000000';
+  const backgroundColor = isDark ? '#000000' : '#F2F2F7';
 
   useEffect(() => {
     let interval: any;
@@ -55,29 +59,42 @@ export default function TimerScreen() {
   };
 
   const progress = 1 - (timeLeft / duration);
-  const formattedTime = `${Math.floor(timeLeft / 60).toString().padStart(2, '0')}:${Math.floor(timeLeft % 60).toString().padStart(2, '0')}`;
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = Math.floor(timeLeft % 60);
+  const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
-      <GlassEffectContainer style={StyleSheet.absoluteFill}>
-        <View style={[
-          styles.gradientPlaceholder, 
-          { backgroundColor: isDark ? '#3b82f6' : '#60a5fa', opacity: isDark ? 0.3 : 0.15 }
-        ]} />
-      </GlassEffectContainer>
-
-      <GlassView style={styles.card} intensity={isDark ? 40 : 60} glassEffectStyle="regular">
-        <View style={styles.timerContainer}>
-          <TimerRing progress={progress} />
-          <Text style={[styles.timeText, { color: isDark ? '#fff' : '#000' }]}>{formattedTime}</Text>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor }]}>
+      <GlassView 
+        style={styles.timerCard} 
+        intensity={80}
+        glassEffectStyle="regular"
+      >
+        <View style={styles.contentContainer}>
+          <TimerRing progress={progress} size={280} />
+          <Text style={[
+            styles.timeText, 
+            { color: textColor },
+            Platform.OS === 'ios' ? { fontVariant: ['tabular-nums'] } : { fontFamily: 'monospace' }
+          ]}>
+            {formattedTime}
+          </Text>
         </View>
       </GlassView>
 
-      <Pressable onPress={toggleTimer} style={styles.buttonContainer}>
-        <GlassView style={styles.button} intensity={isDark ? 60 : 80} isInteractive>
-          <Text style={[styles.buttonText, { color: isDark ? '#fff' : '#000' }]}>{isRunning ? "Pause" : "Start Focus"}</Text>
-        </GlassView>
-      </Pressable>
+      <View style={styles.controls}>
+        <Pressable onPress={toggleTimer}>
+          <GlassView 
+            style={styles.controlPill} 
+            intensity={isDark ? 60 : 80} 
+            isInteractive
+          >
+            <Text style={[styles.controlText, { color: textColor }]}>
+              {isRunning ? "Pause" : "Start Focus"}
+            </Text>
+          </GlassView>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -88,36 +105,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gradientPlaceholder: {
-    flex: 1,
-  },
-  card: {
-    padding: 20,
-    borderRadius: 30,
-    alignItems: 'center',
+  timerCard: {
+    width: 320,
+    height: 320,
+    borderRadius: 32,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    overflow: 'hidden',
     justifyContent: 'center',
-  },
-  timerContainer: {
-    position: 'relative',
     alignItems: 'center',
+  },
+  contentContainer: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
+    alignItems: 'center',
   },
   timeText: {
     position: 'absolute',
-    fontSize: 64,
+    fontSize: 72,
     fontWeight: '200',
-    fontVariant: ['tabular-nums'],
+    letterSpacing: -1,
   },
-  buttonContainer: {
-    marginTop: 50,
+  controls: {
+    marginTop: 60,
   },
-  button: {
-    paddingHorizontal: 40,
-    paddingVertical: 16,
+  controlPill: {
+    paddingHorizontal: 48,
+    paddingVertical: 18,
     borderRadius: 100,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  buttonText: {
-    fontSize: 20,
+  controlText: {
+    fontSize: 18,
     fontWeight: '600',
+    letterSpacing: -0.5,
   },
 });
