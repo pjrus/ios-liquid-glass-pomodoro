@@ -1,15 +1,31 @@
+/**
+ * Timer Store - Pomodoro Timer State Management
+ * 
+ * This Zustand store manages all timer-related state including:
+ * - Timer state (running, paused, duration)
+ * - Timer profiles (presets like "Standard", "Short Focus")
+ * - Persistence via AsyncStorage
+ * 
+ * KEY CONCEPTS:
+ * - `startTime`: Absolute timestamp when timer started (for drift-free timing)
+ * - `pausedTimeLeft`: Remaining time when paused (enables resume)
+ * - Timer modes: 'focus' (work) and 'break' (rest)
+ */
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+/** Timer profile configuration */
 export interface TimerProfile {
   id: string;
   name: string;
-  workDuration: number; // in minutes
-  breakDuration: number; // in minutes
+  workDuration: number;  // Focus period in minutes
+  breakDuration: number; // Break period in minutes
 }
 
+/** Built-in default profiles */
 export const DEFAULT_PROFILES: TimerProfile[] = [
   { id: 'standard', name: 'Standard', workDuration: 25, breakDuration: 5 },
   { id: 'short', name: 'Short Focus', workDuration: 10, breakDuration: 5 },
@@ -53,14 +69,20 @@ export const useTimerStore = create<TimerState>()(
       profiles: DEFAULT_PROFILES,
       activeProfileId: 'standard',
 
+      /**
+       * Start Timer
+       * 
+       * Begins countdown from current duration (or paused time if resuming).
+       * Schedules a local notification for timer completion.
+       */
       startTimer: async () => {
         const { duration, pausedTimeLeft } = get();
         
-        // If we have paused time, resume from there
+        // Resume from paused time or start fresh
         const effectiveDuration = pausedTimeLeft !== null ? pausedTimeLeft : duration;
         const startTime = Date.now();
         
-        // Schedule notification
+        // Schedule completion notification
         await Notifications.scheduleNotificationAsync({
           content: {
             title: "Timer Complete",
@@ -82,11 +104,17 @@ export const useTimerStore = create<TimerState>()(
         });
       },
 
+      /**
+       * Stop Timer (Pause)
+       * 
+       * Pauses the timer and saves remaining time for resume.
+       * Cancels any scheduled notifications.
+       */
       stopTimer: async () => {
         const { startTime, duration } = get();
         await Notifications.cancelAllScheduledNotificationsAsync();
         
-        // Calculate remaining time to enable resume
+        // Calculate and save remaining time for resume
         let timeLeft = duration;
         if (startTime) {
           const elapsed = (Date.now() - startTime) / 1000;
@@ -100,18 +128,24 @@ export const useTimerStore = create<TimerState>()(
         });
       },
 
+      /**
+       * Reset Timer
+       * 
+       * Completely stops timer and resets to initial focus duration.
+       * Returns to focus mode regardless of current mode.
+       */
       resetTimer: async () => {
         await Notifications.cancelAllScheduledNotificationsAsync();
         const { profiles, activeProfileId } = get();
         const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
-        const originalDuration = activeProfile.workDuration * 60; // Always reset to focus duration
+        const originalDuration = activeProfile.workDuration * 60;
         
         set({ 
           isRunning: false, 
           startTime: null,
           duration: originalDuration,
           pausedTimeLeft: null,
-          timerMode: 'focus' // Always reset to focus mode
+          timerMode: 'focus'
         });
       },
 

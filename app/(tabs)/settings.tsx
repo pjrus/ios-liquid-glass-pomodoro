@@ -1,3 +1,4 @@
+import { createAudioPlayer } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
@@ -11,7 +12,7 @@ import { DEFAULT_PROFILES, useTimerStore } from '../../store/timerStore';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets() || { top: 0, bottom: 0, left: 0, right: 0 };
-  const { theme, setTheme, timerStyle, setTimerStyle, ambientSound, setAmbientSound } = useThemeStore();
+  const { theme, setTheme, timerStyle, setTimerStyle, ambientSound, setAmbientSound, focusSound, setFocusSound } = useThemeStore();
   const { profiles, addProfile, deleteProfile } = useTimerStore();
   const { customSounds, selectedSoundId, addCustomSound, deleteCustomSound, setSelectedSound } = useSoundStore();
   
@@ -29,6 +30,10 @@ export default function SettingsScreen() {
   const [newWorkDuration, setNewWorkDuration] = useState('');
   const [newBreakDuration, setNewBreakDuration] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [previewingSoundUri, setPreviewingSoundUri] = useState<string | null>(null);
+  
+  // Audio player ref for preview (using ref to avoid hook issues)
+  const previewPlayerRef = React.useRef<any>(null);
 
   const handleThemeChange = (newTheme: ThemeType) => {
     if (newTheme !== theme) {
@@ -47,6 +52,13 @@ export default function SettingsScreen() {
   const handleSoundChange = (sound: any) => {
       if (sound !== ambientSound) {
           setAmbientSound(sound);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
+      }
+  };
+
+  const handleFocusSoundChange = (sound: any) => {
+      if (sound !== focusSound) {
+          setFocusSound(sound);
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
       }
   };
@@ -155,6 +167,38 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
   };
 
+  // Handle previewing a custom sound
+  const handlePreviewSound = (uri: string) => {
+    try {
+      // Stop current preview if exists
+      if (previewPlayerRef.current) {
+        try {
+          previewPlayerRef.current.pause();
+          previewPlayerRef.current.remove();
+        } catch {
+          // Ignore cleanup errors
+        }
+        previewPlayerRef.current = null;
+      }
+
+      // If clicking same sound that was playing, just stop
+      if (previewingSoundUri === uri) {
+        setPreviewingSoundUri(null);
+        return;
+      }
+
+      // Create new player and start preview
+      setPreviewingSoundUri(uri);
+      const player = createAudioPlayer({ uri });
+      previewPlayerRef.current = player;
+      player.play();
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.warn('Preview error:', error);
+    }
+  };
+
   const SettingRow = ({ label, isSelected, onPress, icon }: { label: string, isSelected: boolean, onPress: () => void, icon?: string }) => (
     <Pressable onPress={onPress}>
       <View style={styles.row}>
@@ -199,9 +243,30 @@ export default function SettingsScreen() {
         </View>
 
         <View style={{ marginTop: 30 }}>
-            <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>AMBIENT SOUND</Text>
+            <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>BACKGROUND SOUND (DURING TIMER)</Text>
             <GlassView style={styles.section} intensity={isDark ? 30 : 50}>
-                <SettingRow label="Off" isSelected={ambientSound === 'none'} onPress={() => handleSoundChange('none')} icon="speaker.slash.fill" />
+                <SettingRow label="Off" isSelected={focusSound === 'none'} onPress={() => handleFocusSoundChange('none')} icon="speaker.slash.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="Rain" isSelected={focusSound === 'rain'} onPress={() => handleFocusSoundChange('rain')} icon="cloud.rain.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="Forest" isSelected={focusSound === 'forest'} onPress={() => handleFocusSoundChange('forest')} icon="leaf.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="White Noise" isSelected={focusSound === 'white_noise'} onPress={() => handleFocusSoundChange('white_noise')} icon="waveform.path.ecg" />
+            </GlassView>
+        </View>
+
+        <View style={{ marginTop: 30 }}>
+            <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>ALARM SOUND (TIMER END)</Text>
+            <GlassView style={styles.section} intensity={isDark ? 30 : 50}>
+                <SettingRow label="Off" isSelected={ambientSound === 'none'} onPress={() => handleSoundChange('none')} icon="bell.slash.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="Slot Machine" isSelected={ambientSound === 'slot_machine'} onPress={() => handleSoundChange('slot_machine')} icon="gamecontroller.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="Rain" isSelected={ambientSound === 'rain'} onPress={() => handleSoundChange('rain')} icon="cloud.rain.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="Forest" isSelected={ambientSound === 'forest'} onPress={() => handleSoundChange('forest')} icon="leaf.fill" />
+                <View style={styles.separator} />
+                <SettingRow label="White Noise" isSelected={ambientSound === 'white_noise'} onPress={() => handleSoundChange('white_noise')} icon="waveform.path.ecg" />
             </GlassView>
         </View>
 
@@ -211,12 +276,13 @@ export default function SettingsScreen() {
                 {customSounds.length === 0 ? (
                     <View style={styles.row}>
                         <Text style={{ color: secondaryTextColor, fontSize: 15, fontStyle: 'italic' }}>
-                            No custom sounds added yet
+                            No alarm sounds added yet
                         </Text>
                     </View>
                 ) : (
                     customSounds.map((sound, index) => {
                         const isSelected = ambientSound === 'custom' && selectedSoundId === sound.id;
+                        const isPreviewing = previewingSoundUri === sound.uri;
                         return (
                             <React.Fragment key={sound.id}>
                                 {index > 0 && <View style={styles.separator} />}
@@ -230,6 +296,13 @@ export default function SettingsScreen() {
                                             {isSelected && (
                                                 <SymbolView name="checkmark" tintColor="#007AFF" size={18} />
                                             )}
+                                            <TouchableOpacity onPress={(e) => { e.stopPropagation(); handlePreviewSound(sound.uri); }}>
+                                                <SymbolView 
+                                                    name={isPreviewing ? "stop.fill" : "play.fill"} 
+                                                    tintColor="#007AFF" 
+                                                    size={16} 
+                                                />
+                                            </TouchableOpacity>
                                             <TouchableOpacity onPress={() => handleDeleteSound(sound.id, sound.name)}>
                                                 <SymbolView name="trash" tintColor="#FF3B30" size={16} />
                                             </TouchableOpacity>
@@ -245,7 +318,7 @@ export default function SettingsScreen() {
             <TouchableOpacity onPress={handleUploadSound} disabled={isUploading} style={{ marginTop: 12 }}>
                 <GlassView style={[styles.section, { padding: 18, alignItems: 'center', opacity: isUploading ? 0.6 : 1 }]} intensity={isDark ? 30 : 50}>
                     <Text style={{ color: '#007AFF', fontSize: 17, fontWeight: '600' }}>
-                        {isUploading ? 'Uploading...' : 'Upload Sound...'}
+                        {isUploading ? 'Uploading...' : 'Add Alarm Sound...'}
                     </Text>
                 </GlassView>
             </TouchableOpacity>
