@@ -1,25 +1,79 @@
+import { AudioSource, useAudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
-import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView } from '../../components/GlassView';
+import { LiquidTank } from '../../components/LiquidTank'; // Import LiquidTank
 import { TimerRing } from '../../components/TimerRing';
 import { SessionRepository } from '../../repositories/SessionRepository';
+import { useSoundStore } from '../../store/soundStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useTimerStore } from '../../store/timerStore';
 
 export default function TimerScreen() {
   const insets = useSafeAreaInsets();
-  const { isRunning, startTime, duration, startTimer, stopTimer, timerMode, setTimerMode, activeProfileId, profiles, setActiveProfile } = useTimerStore();
+  const timerState = useTimerStore();
+  const { isRunning, startTime, duration, startTimer, stopTimer, resetTimer, timerMode, setTimerMode, activeProfileId, profiles, setActiveProfile } = timerState;
+  const pausedTimeLeft = timerState.pausedTimeLeft ?? null; // Handle missing state from old cache
   const [timeLeft, setTimeLeft] = useState(duration);
-  const { theme } = useThemeStore();
+  const { theme, timerStyle, ambientSound } = useThemeStore(); // Get preferences
+  const { customSounds, selectedSoundId } = useSoundStore(); // Get custom sounds
   const systemColorScheme = useColorScheme();
   
   const isDark = theme === 'system' ? systemColorScheme === 'dark' : theme === 'dark';
 
+  // Animate button layout changes
+  const showThreeButtons = isRunning || pausedTimeLeft !== null;
+  const prevShowThreeButtons = useRef(showThreeButtons);
+  
+  useEffect(() => {
+    if (prevShowThreeButtons.current !== showThreeButtons) {
+      LayoutAnimation.configureNext({
+        duration: 400,
+        create: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity },
+        update: { type: LayoutAnimation.Types.easeInEaseOut },
+        delete: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity },
+      });
+      prevShowThreeButtons.current = showThreeButtons;
+    }
+  }, [showThreeButtons]);
+
   const textColor = isDark ? '#FFFFFF' : '#000000';
   const secondaryTextColor = isDark ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.6)';
   const backgroundColor = isDark ? '#000000' : '#F2F2F7';
+
+  // Get the audio source for the selected custom sound
+  const getAudioSource = (): AudioSource | null => {
+    if (ambientSound === 'custom' && selectedSoundId) {
+      const selectedSound = customSounds.find(s => s.id === selectedSoundId);
+      if (selectedSound) {
+        return { uri: selectedSound.uri };
+      }
+    }
+    return null;
+  };
+  
+  const audioSource = getAudioSource();
+  
+  // Use expo-audio player for custom sounds
+  const player = useAudioPlayer(audioSource);
+  
+  // Control playback based on timer state
+  useEffect(() => {
+    if (!audioSource || !player) return;
+    
+    if (isRunning) {
+      player.loop = true;
+      player.play();
+    } else {
+      player.pause();
+    }
+    
+    return () => {
+      player.pause();
+    };
+  }, [isRunning, audioSource, player]);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
 
@@ -87,18 +141,26 @@ export default function TimerScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  // Skip to next phase (focus -> break or break -> focus)
+  const skipPhase = () => {
+    const nextMode = timerMode === 'focus' ? 'break' : 'focus';
+    setTimerMode(nextMode);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
   const progress = 1 - (timeLeft / duration);
   const minutes = Math.floor(timeLeft / 60);
   const seconds = Math.floor(timeLeft % 60);
   const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
 
-  const buttonLabel = isRunning 
-    ? "Pause" 
-    : (timerMode === 'focus' ? "Start Focus" : "Start Break");
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor }]}>
+    <ScrollView 
+      style={[styles.scrollContainer, { backgroundColor }]}
+      contentContainerStyle={[styles.container, { /* paddingTop: insets.top, */ paddingBottom: insets.bottom + 100 }]}
+      showsVerticalScrollIndicator={false}
+    >
       
       <View style={styles.profileSelectorContainer}>
         <ScrollView 
@@ -136,60 +198,132 @@ export default function TimerScreen() {
       </View>
 
       <GlassView 
-        style={styles.timerCard} 
+        style={[styles.timerCard, timerStyle === 'sand' && styles.timerCardSand]} 
         intensity={80}
         glassEffectStyle="regular"
       >
         <View style={styles.contentContainer}>
-          <TimerRing progress={progress} size={280} />
-          <View style={styles.timeWrapper}>
-             <View style={{ alignItems: 'center' }}>
-                <Text style={[styles.modeText, { color: secondaryTextColor }]}>{activeProfile.name}</Text>
-                {timerMode === 'focus' && (
-                    <Text style={[styles.durationText, { color: secondaryTextColor }]}>
-                        {activeProfile.workDuration}/{activeProfile.breakDuration}
-                    </Text>
-                )}
-             </View>
-             <Text style={[
-                styles.timeText, 
-                { color: textColor },
-                Platform.OS === 'ios' ? { fontVariant: ['tabular-nums'] } : { fontFamily: 'monospace' }
-             ]}>
-                {formattedTime}
-             </Text>
-          </View>
+          {timerStyle === 'sand' ? (
+              <View style={styles.sandContainer}>
+                  <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                      <Text style={[styles.modeText, { color: secondaryTextColor }]}>{activeProfile.name}</Text>
+                      {timerMode === 'focus' && (
+                          <Text style={[styles.durationText, { color: secondaryTextColor }]}>
+                              {activeProfile.workDuration}/{activeProfile.breakDuration}
+                          </Text>
+                      )}
+                      <Text style={[
+                          styles.timeText, 
+                          { color: textColor, fontSize: 64, lineHeight: 70 },
+                          Platform.OS === 'ios' ? { fontVariant: ['tabular-nums'] } : { fontFamily: 'monospace' }
+                      ]}>
+                          {formattedTime}
+                      </Text>
+                  </View>
+                  <LiquidTank progress={progress} size={240} />
+              </View>
+          ) : (
+              <>
+                <TimerRing progress={progress} size={280} />
+                <View style={styles.timeWrapper}>
+                   <View style={{ alignItems: 'center' }}>
+                      <Text style={[styles.modeText, { color: secondaryTextColor }]}>{activeProfile.name}</Text>
+                      {timerMode === 'focus' && (
+                          <Text style={[styles.durationText, { color: secondaryTextColor }]}>
+                              {activeProfile.workDuration}/{activeProfile.breakDuration}
+                          </Text>
+                      )}
+                   </View>
+                   <Text style={[
+                      styles.timeText, 
+                      { color: textColor },
+                      Platform.OS === 'ios' ? { fontVariant: ['tabular-nums'] } : { fontFamily: 'monospace' }
+                   ]}>
+                      {formattedTime}
+                   </Text>
+                </View>
+              </>
+          )}
         </View>
       </GlassView>
 
       <View style={styles.controls}>
-        <Pressable onPress={toggleTimer}>
-          <GlassView 
-            style={styles.controlPill} 
-            intensity={isDark ? 60 : 80} 
-            isInteractive
-          >
-            <Text style={[styles.controlText, { color: textColor }]}>
-              {buttonLabel}
-            </Text>
-          </GlassView>
-        </Pressable>
+        {/* Before timer starts - single Start button */}
+        {!isRunning && pausedTimeLeft === null ? (
+          <Pressable onPress={() => startTimer()}>
+            <GlassView 
+              style={styles.controlPill} 
+              intensity={isDark ? 60 : 80} 
+              isInteractive
+            >
+              <Text style={[styles.controlText, { color: textColor }]}>
+                {timerMode === 'focus' ? 'Start Focus' : 'Start Break'}
+              </Text>
+            </GlassView>
+          </Pressable>
+        ) : (
+          /* Timer is running or paused - show 3 buttons */
+          <View style={styles.controlButtonRow}>
+            {/* Pause/Resume Button */}
+            <Pressable onPress={toggleTimer}>
+              <GlassView 
+                style={styles.controlPillSmall} 
+                intensity={isDark ? 60 : 80} 
+                isInteractive
+              >
+                <Text style={[styles.controlText, { color: textColor }]}>
+                  {isRunning ? 'Pause' : 'Resume'}
+                </Text>
+              </GlassView>
+            </Pressable>
+
+            {/* Stop Button */}
+            <Pressable onPress={() => {
+              resetTimer();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }}>
+              <GlassView 
+                style={styles.controlPillSmall} 
+                intensity={isDark ? 40 : 60} 
+                isInteractive
+              >
+                <Text style={[styles.controlText, { color: textColor }]}>
+                  Stop
+                </Text>
+              </GlassView>
+            </Pressable>
+
+            {/* Skip Phase Button */}
+            <Pressable onPress={skipPhase}>
+              <GlassView 
+                style={styles.controlPillSmall} 
+                intensity={isDark ? 40 : 60} 
+                isInteractive
+              >
+                <Text style={[styles.controlText, { color: textColor }]}>
+                  {timerMode === 'focus' ? 'Skip' : 'Skip'}
+                </Text>
+              </GlassView>
+            </Pressable>
+          </View>
+        )}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scrollContainer: {
     flex: 1,
+  },
+  container: {
     alignItems: 'center',
-    // justifyContent: 'center' removed to allow custom spacing
   },
   profileSelectorContainer: {
       height: 60,
       width: '100%',
-      marginTop: 20,
-      marginBottom: 20,
+      marginTop: 8,
+      marginBottom: 16,
   },
   profileSelectorContent: {
       paddingHorizontal: 20,
@@ -216,6 +350,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  timerCardSand: {
+    height: 440,
+  },
+  sandContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
   },
   contentContainer: {
     width: '100%',
@@ -251,11 +393,24 @@ const styles = StyleSheet.create({
       textAlign: 'center',
   },
   controls: {
-    marginTop: 60,
+    marginTop: 16,
+  },
+  controlButtonRow: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
   },
   controlPill: {
     paddingHorizontal: 48,
     paddingVertical: 18,
+    borderRadius: 100,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  controlPillSmall: {
+    width: 160,
+    alignItems: 'center',
+    paddingVertical: 14,
     borderRadius: 100,
     borderWidth: 0.5,
     borderColor: 'rgba(255, 255, 255, 0.2)',

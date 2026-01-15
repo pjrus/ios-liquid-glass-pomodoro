@@ -1,16 +1,19 @@
+import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import React, { useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassView } from '../../components/GlassView';
+import { MAX_SOUND_FILE_SIZE, useSoundStore } from '../../store/soundStore';
 import { ThemeType, useThemeStore } from '../../store/themeStore';
 import { DEFAULT_PROFILES, useTimerStore } from '../../store/timerStore';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets() || { top: 0, bottom: 0, left: 0, right: 0 };
-  const { theme, setTheme } = useThemeStore();
+  const { theme, setTheme, timerStyle, setTimerStyle, ambientSound, setAmbientSound } = useThemeStore();
   const { profiles, addProfile, deleteProfile } = useTimerStore();
+  const { customSounds, selectedSoundId, addCustomSound, deleteCustomSound, setSelectedSound } = useSoundStore();
   
   const systemColorScheme = useColorScheme();
   const currentTheme = theme === 'system' ? systemColorScheme : theme;
@@ -25,12 +28,27 @@ export default function SettingsScreen() {
   const [newProfileName, setNewProfileName] = useState('');
   const [newWorkDuration, setNewWorkDuration] = useState('');
   const [newBreakDuration, setNewBreakDuration] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleThemeChange = (newTheme: ThemeType) => {
     if (newTheme !== theme) {
       setTheme(newTheme);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
     }
+  };
+
+  const handleTimerStyleChange = (style: any) => {
+      if (style !== timerStyle) {
+          setTimerStyle(style);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
+      }
+  };
+
+  const handleSoundChange = (sound: any) => {
+      if (sound !== ambientSound) {
+          setAmbientSound(sound);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
+      }
   };
 
   // Validate inputs and create a new custom timer profile
@@ -74,18 +92,85 @@ export default function SettingsScreen() {
       );
   };
 
-  const ThemeRow = ({ label, value, icon }: { label: string, value: ThemeType, icon: string }) => (
-    <Pressable onPress={() => handleThemeChange(value)}>
+  // Handle uploading a custom sound file
+  const handleUploadSound = async () => {
+    try {
+      setIsUploading(true);
+      
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'audio/*',
+        copyToCacheDirectory: true,
+      });
+      
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+      
+      const file = result.assets[0];
+      
+      // Check file size
+      if (file.size && file.size > MAX_SOUND_FILE_SIZE) {
+        Alert.alert('File Too Large', 'Please select an audio file under 10MB.');
+        return;
+      }
+      
+      // Get file name without extension for display
+      const name = file.name?.replace(/\.[^/.]+$/, '') || 'Custom Sound';
+      
+      await addCustomSound(name, file.uri);
+      setAmbientSound('custom'); // Switch to custom sound mode
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'Failed to upload sound file.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle deleting a custom sound
+  const handleDeleteSound = (id: string, name: string) => {
+    Alert.alert(
+      'Delete Sound',
+      `Are you sure you want to delete "${name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteCustomSound(id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle selecting a custom sound
+  const handleSelectCustomSound = (id: string) => {
+    setSelectedSound(id);
+    setAmbientSound('custom');
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Soft);
+  };
+
+  const SettingRow = ({ label, isSelected, onPress, icon }: { label: string, isSelected: boolean, onPress: () => void, icon?: string }) => (
+    <Pressable onPress={onPress}>
       <View style={styles.row}>
         <View style={styles.labelContainer}>
-          <SymbolView name={icon as any} tintColor={textColor} size={20} />
+          {icon && <SymbolView name={icon as any} tintColor={textColor} size={20} />}
           <Text style={[styles.rowText, { color: textColor }]}>{label}</Text>
         </View>
-        {theme === value && (
+        {isSelected && (
           <SymbolView name={"checkmark" as any} tintColor="#007AFF" size={18} />
         )}
       </View>
     </Pressable>
+  );
+
+  const ThemeRow = ({ label, value, icon }: { label: string, value: ThemeType, icon: string }) => (
+    <SettingRow label={label} isSelected={theme === value} onPress={() => handleThemeChange(value)} icon={icon} />
   );
 
   const backgroundColor = isDark ? '#000000' : '#F2F2F7';
@@ -103,6 +188,68 @@ export default function SettingsScreen() {
           <View style={styles.separator} />
           <ThemeRow label="System" value="system" icon="iphone" />
         </GlassView>
+
+        <View style={{ marginTop: 30 }}>
+            <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>TIMER VISUALS</Text>
+            <GlassView style={styles.section} intensity={isDark ? 30 : 50}>
+                <SettingRow label="Ring" isSelected={timerStyle === 'ring'} onPress={() => handleTimerStyleChange('ring')} icon="circle" />
+                <View style={styles.separator} />
+                <SettingRow label="Liquid Tank" isSelected={timerStyle === 'sand'} onPress={() => handleTimerStyleChange('sand')} icon="drop.fill" />
+            </GlassView>
+        </View>
+
+        <View style={{ marginTop: 30 }}>
+            <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>AMBIENT SOUND</Text>
+            <GlassView style={styles.section} intensity={isDark ? 30 : 50}>
+                <SettingRow label="Off" isSelected={ambientSound === 'none'} onPress={() => handleSoundChange('none')} icon="speaker.slash.fill" />
+            </GlassView>
+        </View>
+
+        <View style={{ marginTop: 30 }}>
+            <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>CUSTOM SOUNDS</Text>
+            <GlassView style={styles.section} intensity={isDark ? 30 : 50}>
+                {customSounds.length === 0 ? (
+                    <View style={styles.row}>
+                        <Text style={{ color: secondaryTextColor, fontSize: 15, fontStyle: 'italic' }}>
+                            No custom sounds added yet
+                        </Text>
+                    </View>
+                ) : (
+                    customSounds.map((sound, index) => {
+                        const isSelected = ambientSound === 'custom' && selectedSoundId === sound.id;
+                        return (
+                            <React.Fragment key={sound.id}>
+                                {index > 0 && <View style={styles.separator} />}
+                                <Pressable onPress={() => handleSelectCustomSound(sound.id)}>
+                                    <View style={styles.row}>
+                                        <View style={styles.labelContainer}>
+                                            <SymbolView name="music.note" tintColor={textColor} size={20} />
+                                            <Text style={[styles.rowText, { color: textColor }]}>{sound.name}</Text>
+                                        </View>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                            {isSelected && (
+                                                <SymbolView name="checkmark" tintColor="#007AFF" size={18} />
+                                            )}
+                                            <TouchableOpacity onPress={() => handleDeleteSound(sound.id, sound.name)}>
+                                                <SymbolView name="trash" tintColor="#FF3B30" size={16} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </Pressable>
+                            </React.Fragment>
+                        );
+                    })
+                )}
+            </GlassView>
+            
+            <TouchableOpacity onPress={handleUploadSound} disabled={isUploading} style={{ marginTop: 12 }}>
+                <GlassView style={[styles.section, { padding: 18, alignItems: 'center', opacity: isUploading ? 0.6 : 1 }]} intensity={isDark ? 30 : 50}>
+                    <Text style={{ color: '#007AFF', fontSize: 17, fontWeight: '600' }}>
+                        {isUploading ? 'Uploading...' : 'Upload Sound...'}
+                    </Text>
+                </GlassView>
+            </TouchableOpacity>
+        </View>
 
         <View style={{ marginTop: 30 }}>
           <Text style={[styles.sectionTitle, { color: secondaryTextColor }]}>MANAGE PROFILES</Text>

@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassEffectContainer, GlassView } from '../../components/GlassView';
 import { Session, SessionRepository } from '../../repositories/SessionRepository';

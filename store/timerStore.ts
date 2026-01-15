@@ -21,6 +21,7 @@ interface TimerState {
   startTime: number | null; // Timestamp
   isRunning: boolean;
   timerMode: 'focus' | 'break';
+  pausedTimeLeft: number | null; // Time remaining when paused
 
   // Profile State
   profiles: TimerProfile[];
@@ -29,7 +30,7 @@ interface TimerState {
   // Actions
   startTimer: () => Promise<void>;
   stopTimer: () => Promise<void>;
-  resetTimer: () => void;
+  resetTimer: () => Promise<void>;
   setTimerMode: (mode: 'focus' | 'break') => void;
   
   // Profile Actions
@@ -46,13 +47,17 @@ export const useTimerStore = create<TimerState>()(
       startTime: null,
       isRunning: false,
       timerMode: 'focus',
+      pausedTimeLeft: null,
 
       // Initial Profile State
       profiles: DEFAULT_PROFILES,
       activeProfileId: 'standard',
 
       startTimer: async () => {
-        const { duration } = get();
+        const { duration, pausedTimeLeft } = get();
+        
+        // If we have paused time, resume from there
+        const effectiveDuration = pausedTimeLeft !== null ? pausedTimeLeft : duration;
         const startTime = Date.now();
         
         // Schedule notification
@@ -64,22 +69,50 @@ export const useTimerStore = create<TimerState>()(
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds: duration,
+            seconds: Math.max(1, Math.round(effectiveDuration)),
             repeats: false,
           },
         });
 
-        set({ isRunning: true, startTime });
+        set({ 
+          isRunning: true, 
+          startTime,
+          duration: effectiveDuration,
+          pausedTimeLeft: null 
+        });
       },
 
       stopTimer: async () => {
+        const { startTime, duration } = get();
         await Notifications.cancelAllScheduledNotificationsAsync();
-        set({ isRunning: false, startTime: null });
+        
+        // Calculate remaining time to enable resume
+        let timeLeft = duration;
+        if (startTime) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          timeLeft = Math.max(0, duration - elapsed);
+        }
+        
+        set({ 
+          isRunning: false, 
+          startTime: null,
+          pausedTimeLeft: timeLeft > 0 ? timeLeft : null
+        });
       },
 
-      resetTimer: () => {
-        get().stopTimer(); // Cancel notifs
-        set({ isRunning: false, startTime: null });
+      resetTimer: async () => {
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        const { profiles, activeProfileId } = get();
+        const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
+        const originalDuration = activeProfile.workDuration * 60; // Always reset to focus duration
+        
+        set({ 
+          isRunning: false, 
+          startTime: null,
+          duration: originalDuration,
+          pausedTimeLeft: null,
+          timerMode: 'focus' // Always reset to focus mode
+        });
       },
 
       setTimerMode: (mode) => {
@@ -93,7 +126,8 @@ export const useTimerStore = create<TimerState>()(
           timerMode: mode,
           duration: newDuration,
           isRunning: false,
-          startTime: null
+          startTime: null,
+          pausedTimeLeft: null
         });
       },
 
