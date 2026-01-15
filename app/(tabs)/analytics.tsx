@@ -21,9 +21,11 @@ export default function AnalyticsScreen() {
     SessionRepository.getAllSessions().then(setSessions);
   }, []);
 
+  // Aggregate total focus duration from all sessions to display in the UI
   const totalMinutes = sessions.reduce((acc, s) => acc + (s.duration / 60), 0);
   const totalSessions = sessions.length;
 
+  // Reusable card component for displaying individual statistics with glass effect
   const StatCard = ({ label, value, icon, tint }: { label: string, value: string | number, icon: string, tint: string }) => (
     <GlassView style={styles.statCard} intensity={isDark ? 30 : 50}>
       <View style={styles.statContent}>
@@ -39,6 +41,24 @@ export default function AnalyticsScreen() {
   );
 
   const backgroundColor = isDark ? '#000000' : '#F2F2F7';
+
+  const handleClearHistory = () => {
+    Alert.alert(
+      "Clear History",
+      "Are you sure you want to delete all activity history? This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Clear All", 
+          style: "destructive", 
+          onPress: async () => {
+            await SessionRepository.clearHistory();
+            setSessions([]);
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor }]}>
@@ -74,7 +94,14 @@ export default function AnalyticsScreen() {
           </GlassView>
         </GlassEffectContainer>
 
-        <Text style={[styles.subHeader, { color: secondaryTextColor }]}>ACTIVITY HISTORY</Text>
+        <View style={styles.historyHeaderContainer}>
+            <Text style={[styles.subHeader, { color: secondaryTextColor, marginTop: 0 }]}>ACTIVITY HISTORY</Text>
+            {sessions.length > 0 && (
+                <TouchableOpacity onPress={handleClearHistory}>
+                    <Text style={{ color: '#FF3B30', fontSize: 13, fontWeight: '600' }}>Clear History</Text>
+                </TouchableOpacity>
+            )}
+        </View>
         {sessions.length === 0 ? (
           <GlassView style={styles.emptyState} intensity={20}>
             <Text style={{ color: secondaryTextColor, fontSize: 16 }}>No sessions recorded yet</Text>
@@ -109,7 +136,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40,
+    // Add extra padding to ensure content clears the floating tab bar
+    paddingBottom: 120,
   },
   header: {
     fontSize: 34,
@@ -117,12 +145,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     letterSpacing: -1,
   },
+  historyHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 32,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+  },
   subHeader: {
     fontSize: 13,
     fontWeight: '600',
-    marginTop: 32,
-    marginBottom: 12,
-    marginLeft: 12,
+    // marginTop: 32, // Moved to container
+    // marginBottom: 12, // Moved to container
+    // marginLeft: 12, // Moved to container/padding
   },
   statsGrid: {
     flexDirection: 'row',

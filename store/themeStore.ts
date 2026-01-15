@@ -7,8 +7,8 @@ export type ThemeType = 'light' | 'dark' | 'system';
 interface ThemeState {
   theme: ThemeType;
   setTheme: (theme: ThemeType) => void;
-  _hasHydrated: boolean;
-  setHasHydrated: (state: boolean) => void;
+  hasLoaded: boolean;
+  setHasLoaded: (state: boolean) => void;
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -16,14 +16,14 @@ export const useThemeStore = create<ThemeState>()(
     (set) => ({
       theme: 'system',
       setTheme: (theme) => set({ theme }),
-      _hasHydrated: false,
-      setHasHydrated: (state) => set({ _hasHydrated: state }),
+      hasLoaded: false,
+      setHasLoaded: (state) => set({ hasLoaded: state }),
     }),
     {
       name: 'theme-storage',
       storage: createJSONStorage(() => AsyncStorage),
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
+        state?.setHasLoaded(true);
       },
     }
   )
