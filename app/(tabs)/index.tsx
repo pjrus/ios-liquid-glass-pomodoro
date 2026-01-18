@@ -12,6 +12,7 @@
  * @module TimerScreen
  */
 
+import { Ionicons } from '@expo/vector-icons';
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef, useState } from 'react';
@@ -22,6 +23,7 @@ import { LiquidTank } from '../../components/LiquidTank';
 import { TimerRing } from '../../components/TimerRing';
 import { SessionRepository } from '../../repositories/SessionRepository';
 import { useSoundStore } from '../../store/soundStore';
+import { useTaskStore } from '../../store/taskStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useTimerStore } from '../../store/timerStore';
 
@@ -32,7 +34,11 @@ export default function TimerScreen() {
   const pausedTimeLeft = timerState.pausedTimeLeft ?? null; // Handle missing state from old cache
   const [timeLeft, setTimeLeft] = useState(duration);
   const { theme, timerStyle, ambientSound, focusSound } = useThemeStore(); // Get preferences
-  const { customSounds, selectedSoundId } = useSoundStore(); // Get custom sounds
+  const { customSounds, selectedAlarmSoundId, selectedBackgroundSoundId } = useSoundStore(); // Get custom sounds
+  const { tasks, activeTaskId, incrementTaskPomodoros, setActiveTask } = useTaskStore();
+  
+  const activeTask = tasks.find(t => t.id === activeTaskId);
+
   const systemColorScheme = useColorScheme();
   
   // State to track if alarm is currently ringing
@@ -85,8 +91,8 @@ export default function TimerScreen() {
   const audioSource = React.useMemo(() => {
     // Priority 1: Alarm Sound (when timer ends)
     if (isAlarmPlaying) {
-        if (ambientSound === 'custom' && selectedSoundId) {
-            const selectedSound = customSounds.find(s => s.id === selectedSoundId);
+        if (ambientSound === 'custom' && selectedAlarmSoundId) {
+            const selectedSound = customSounds.find(s => s.id === selectedAlarmSoundId);
             return selectedSound ? { uri: selectedSound.uri } : null;
         }
         if (ambientSound === 'slot_machine') return require('../../assets/sounds/slot_machine.wav');
@@ -97,6 +103,10 @@ export default function TimerScreen() {
     
     // Priority 2: Background Sound (while timer is running)
     if (isRunning) {
+        if (focusSound === 'custom' && selectedBackgroundSoundId) {
+             const selectedSound = customSounds.find(s => s.id === selectedBackgroundSoundId);
+             return selectedSound ? { uri: selectedSound.uri } : null;
+        }
         if (focusSound === 'rain') return require('../../assets/sounds/rain.mp3');
         if (focusSound === 'forest') return require('../../assets/sounds/forest.mp3');
         if (focusSound === 'white_noise') return require('../../assets/sounds/white_noise.mp3');
@@ -106,7 +116,7 @@ export default function TimerScreen() {
     }
 
     return null;
-  }, [ambientSound, selectedSoundId, customSounds, isAlarmPlaying, isRunning, focusSound]);
+  }, [ambientSound, selectedAlarmSoundId, selectedBackgroundSoundId, customSounds, isAlarmPlaying, isRunning, focusSound]);
   
   // Use ref to hold the audio player instance
   const playerRef = useRef<any>(null);
@@ -153,7 +163,6 @@ export default function TimerScreen() {
   }, [audioSource]);
   
 
-
   /**
    * Audio Playback Control Effect
    * 
@@ -180,7 +189,7 @@ export default function TimerScreen() {
   // Stop alarm when audio source changes (e.g. user changes setting)
   useEffect(() => {
       setIsAlarmPlaying(false);
-  }, [ambientSound, selectedSoundId]);
+  }, [ambientSound, selectedAlarmSoundId]);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0];
 
@@ -240,6 +249,11 @@ export default function TimerScreen() {
                 completedAt: Date.now(),
                 type: 'focus',
               });
+
+              // Increment task pomodoros if active
+              if (activeTaskId) {
+                  incrementTaskPomodoros(activeTaskId);
+              }
           }
 
           // Auto-transition to the next timer mode
@@ -255,7 +269,7 @@ export default function TimerScreen() {
       setTimeLeft(pausedTimeLeft ?? duration);
     }
     return () => clearInterval(interval);
-  }, [isRunning, startTime, duration, stopTimer, timerMode, setTimerMode, pausedTimeLeft]);
+  }, [isRunning, startTime, duration, stopTimer, timerMode, setTimerMode, pausedTimeLeft, activeTaskId, incrementTaskPomodoros]);
 
   const toggleTimer = () => {
     setIsAlarmPlaying(false);
@@ -269,7 +283,8 @@ export default function TimerScreen() {
 
   // Switch active profile only when the timer is not running
   const handleProfileSelect = (id: string) => {
-      if (isRunning) return; // Prevent switching while running for simplicity
+      // Prevent switching while running OR paused (must be fully stopped)
+      if (isRunning || pausedTimeLeft !== null) return;
       setIsAlarmPlaying(false);
       setActiveProfile(id);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -323,8 +338,8 @@ export default function TimerScreen() {
                     <Pressable 
                         key={profile.id} 
                         onPress={() => handleProfileSelect(profile.id)}
-                        disabled={isRunning}
-                        style={{ opacity: isRunning ? 0.5 : 1 }}
+                        disabled={isRunning || pausedTimeLeft !== null}
+                        style={{ opacity: (isRunning || pausedTimeLeft !== null) ? 0.5 : 1 }}
                     >
                         <GlassView 
                             intensity={isActive ? (isDark ? 80 : 90) : (isDark ? 20 : 40)}
@@ -346,6 +361,28 @@ export default function TimerScreen() {
         </ScrollView>
       </View>
 
+      {/* Active Task Indicator */}
+      {activeTask && !activeTask.completed && (
+        <View style={styles.activeTaskContainer}>
+            <GlassView intensity={isDark ? 30 : 50} style={styles.activeTaskPill}>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                    <Text style={[styles.activeTaskLabel, { color: secondaryTextColor }]}>Focusing on</Text>
+                    <Text style={[styles.activeTaskTitle, { color: textColor }]} numberOfLines={1}>{activeTask.title}</Text>
+                </View>
+                <Pressable 
+                    onPress={() => {
+                        setActiveTask(null);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }}
+                    style={styles.resetFocusButton}
+                    hitSlop={10}
+                >
+                    <Ionicons name="close-circle" size={20} color={secondaryTextColor} />
+                </Pressable>
+            </GlassView>
+        </View>
+      )}
+
       <GlassView 
         style={[styles.timerCard, timerStyle === 'sand' && styles.timerCardSand]} 
         intensity={80}
@@ -355,12 +392,14 @@ export default function TimerScreen() {
           {timerStyle === 'sand' ? (
               <View style={styles.sandContainer}>
                   <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                      {/* Timer Mode & Duration or Active Task Summary */}
                       <Text style={[styles.modeText, { color: secondaryTextColor }]}>{activeProfile.name}</Text>
                       {timerMode === 'focus' && (
                           <Text style={[styles.durationText, { color: secondaryTextColor }]}>
                               {activeProfile.workDuration}/{activeProfile.breakDuration}
                           </Text>
                       )}
+                      
                       <Text style={[
                           styles.timeText, 
                           { color: textColor, fontSize: 64, lineHeight: 70 },
@@ -476,7 +515,7 @@ const styles = StyleSheet.create({
       height: 60,
       width: '100%',
       marginTop: 8,
-      marginBottom: 16,
+      marginBottom: 0,
   },
   profileSelectorContent: {
       paddingHorizontal: 20,
@@ -493,6 +532,41 @@ const styles = StyleSheet.create({
   },
   profilePillText: {
       fontSize: 14,
+  },
+  activeTaskContainer: {
+      marginBottom: 20,
+      width: '100%',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+  },
+  activeTaskPill: {
+      flexDirection: 'row',
+      paddingLeft: 20,
+      paddingRight: 16,
+      paddingVertical: 10,
+      borderRadius: 16,
+      borderWidth: 0.5,
+      borderColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center',
+      width: '100%',
+      maxWidth: 320,
+      justifyContent: 'space-between',
+  },
+  resetFocusButton: {
+      marginLeft: 8,
+      opacity: 0.7,
+  },
+  activeTaskLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginBottom: 2,
+  },
+  activeTaskTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      textAlign: 'center',
   },
   timerCard: {
     width: 320,

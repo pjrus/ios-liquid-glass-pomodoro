@@ -69,6 +69,16 @@ export default function RootLayout() {
         >
           {/* Main tab navigation - headerShown: false since tabs have own header */}
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          
+          {/* Task Detail Modal - presented as a form sheet on iOS */}
+          <Stack.Screen 
+            name="task/[id]" 
+            options={{ 
+              presentation: 'formSheet',
+              sheetAllowedDetents: [1.0], 
+              headerShown: false 
+            }} 
+          />
         </Stack>
       </View>
     </ThemeProvider>

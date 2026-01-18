@@ -35,6 +35,11 @@ export default function TabLayout() {
         <Icon sf={{ default: 'chart.bar', selected: 'chart.bar.fill' }} />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="tasks">
+        <Label>Tasks</Label>
+        <Icon sf={{ default: 'checklist', selected: 'checklist' }} />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="settings">
         <Label>Settings</Label>
         <Icon sf={{ default: 'gearshape', selected: 'gearshape.fill' }} />

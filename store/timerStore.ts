@@ -205,7 +205,10 @@ export const useTimerStore = create<TimerState>()(
       },
 
       setActiveProfile: (id) => {
-        const { profiles, timerMode } = get();
+        const { profiles, timerMode, pausedTimeLeft, isRunning } = get();
+        // Prevent switching if running or paused
+        if (isRunning || pausedTimeLeft !== null) return;
+        
         const profile = profiles.find((p) => p.id === id);
         if (profile) {
           set({

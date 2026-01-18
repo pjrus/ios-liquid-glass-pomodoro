@@ -30,8 +30,8 @@ interface ThemeState {
   setTimerStyle: (style: TimerStyle) => void;
   ambientSound: AmbientSound; // Main Alarm Sound
   setAmbientSound: (sound: AmbientSound) => void;
-  focusSound: 'none' | 'rain' | 'forest' | 'white_noise';
-  setFocusSound: (sound: 'none' | 'rain' | 'forest' | 'white_noise') => void;
+  focusSound: 'none' | 'rain' | 'forest' | 'white_noise' | 'custom';
+  setFocusSound: (sound: 'none' | 'rain' | 'forest' | 'white_noise' | 'custom') => void;
   hasLoaded: boolean;
   setHasLoaded: (state: boolean) => void;
 }
