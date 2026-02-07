@@ -1,50 +1,100 @@
-# Welcome to your Expo app 👋
+# iOS Liquid Glass Pomodoro
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A beautiful, immersive Pomodoro timer application for iOS built with React Native and Expo. This app combines productivity with a satisfying "Liquid Glass" aesthetic, featuring a unique draining liquid timer, glassmorphism UI elements, and robust task tracking.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Liquid Timer Visualization**: A unique U-shaped tank indicator where time determines the liquid level, featuring smooth SVG animations and meniscus effects.
+- **Glassmorphism UI**: Modern, translucent interface components (`GlassView`) using blur effects for a premium native feel.
+- **Focus & Task Management**:
+  - Create and manage tasks.
+  - Link focus sessions to specific tasks to track productivity.
+  - Track completed Pomodoros per task.
+- **Customizable Profiles**: Switch between different timer modes (Focus, Short Break, Long Break) with custom durations.
+- **Audio Experience**:
+  - Integrated ambient background sounds (White Noise, Rain, etc.) to help you focus.
+  - Custom alarm sounds for timer completion.
+- **Rich Analytics**: Visual history of your focus sessions and daily productivity using `FocusHistoryGraph`.
+- **Haptic Feedback**: Tactile responses for user interactions and timer events.
+- **Theming**: Full support for Light, Dark, and System themes.
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- **Framework**: [React Native](https://reactnative.dev/) with [Expo](https://expo.dev/) (SDK 54)
+- **Routing**: [Expo Router](https://docs.expo.dev/router/introduction/) (File-based routing)
+- **State Management**: [Zustand](https://github.com/pmndrs/zustand) (with persistence)
+- **Animations**: [React Native Reanimated](https://docs.swmansion.com/react-native-reanimated/) & [React Native SVG](https://github.com/software-mansion/react-native-svg)
+- **UI Components**: `expo-blur`, `expo-haptics`, `react-native-gesture-handler`.
+- **Storage**: `@react-native-async-storage/async-storage` & `expo-file-system`.
 
-   ```bash
-   npx expo start
-   ```
+## Getting Started
 
-In the output, you'll find options to open the app in a
+### Prerequisites
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- [Node.js](https://nodejs.org/)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/)
+- iOS Simulator (for Mac users) or the Expo Go app on your physical device.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Installation
 
-## Get a fresh project
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/ios-liquid-glass-pomodoro.git
+    cd ios-liquid-glass-pomodoro
+    ```
 
-When you're ready, run:
+2.  Install dependencies:
+    ```bash
+    npm install
+    # or
+    yarn install
+    ```
 
-```bash
-npm run reset-project
+3.  Run the app:
+    ```bash
+    npx expo start
+    ```
+
+4.  Press `i` to open in the iOS Simulator, or scan the QR code with your phone (using Expo Go or Camera app).
+
+## Project Structure
+
+```
+ios-liquid-glass-pomodoro/
+├── app/                  # Expo Router pages and layouts
+│   ├── (tabs)/           # Main tab navigation (Timer, Tasks, Analytics, Settings)
+│   └── ...
+├── components/           # Reusable UI components
+│   ├── LiquidTank.tsx    # The core liquid timer visualization
+│   ├── GlassView.tsx     # Blurred glass background container
+│   └── ...
+├── constants/            # App constants and theme colors
+├── hooks/                # Custom React hooks
+├── store/                # Zustand state stores (timer, tasks, theme, sound)
+├── assets/               # Images, fonts, and sound files
+└── ios/                  # Native iOS project files
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Key Components
 
-## Learn more
+- **`TimerScreen` (`app/(tabs)/index.tsx`)**: The main dashboard handling the countdown logic, audio playback, and animation coordination.
+- **`LiquidTank`**: An SVG-based component that renders the fluid animation based on the percentage of time remaining.
+- **`TaskStore`**: Manages the state of user tasks and their associated completion metrics.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Contributing
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Join the community
+1.  Fork the project
+2.  Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4.  Push to the branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
 
-Join our community of developers creating universal apps.
+## License
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+This project is open source.
+
+## Acknowledgements
+
+Generative AI was utilized for assistance throughout the development of this application.
