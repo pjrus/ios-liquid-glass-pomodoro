@@ -1,6 +1,6 @@
-# iOS Liquid Glass Pomodoro
+# Pomodoro App
 
-A beautiful, immersive Pomodoro timer application for iOS built with React Native and Expo. This app combines productivity with a satisfying "Liquid Glass" aesthetic, featuring a unique draining liquid timer, glassmorphism UI elements, and robust task tracking.
+A beautiful, immersive Pomodoro timer application for iOS and Android built with React Native and Expo. This app combines productivity with a satisfying "Liquid Glass" aesthetic, featuring a unique draining liquid timer, glassmorphism UI elements, and robust task tracking.
 
 ## Features
 
